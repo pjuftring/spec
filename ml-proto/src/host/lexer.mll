@@ -60,8 +60,11 @@ let floatop t f32 f64 =
   | "f64" -> Values.Float64 f64
   | _ -> assert false
 
-let memop t a =
-  {ty = value_type t; align = if a = "" then None else Some (int_of_string a)}
+let memop t o a =
+  let ty = value_type t in
+  let offset = if o = "" then 0 else int_of_string o in
+  let align = if a = "" then None else Some (int_of_string a) in
+  {ty; offset; align}
 
 let mem_size = function
   | "8" -> Memory.Mem8
@@ -74,11 +77,11 @@ let extension = function
   | 'u' -> Memory.ZX
   | _ -> assert false
 
-let extendop t sz s a =
-  {memop = memop t a; sz = mem_size sz; ext = extension s}
+let extendop t sz s o a =
+  {memop = memop t o a; sz = mem_size sz; ext = extension s}
 
-let truncop t sz a =
-  {memop = memop t a; sz = mem_size sz}
+let truncop t sz o a =
+  {memop = memop t o a; sz = mem_size sz}
 }
 
 let space = [' ''\t']
@@ -103,7 +106,7 @@ let nxx = ixx | fxx
 let mixx = "i" ("8" | "16" | "32" | "64")
 let mfxx = "f" ("32" | "64")
 let sign = "s" | "u"
-let align = digit+
+let digits = digit+
 let mem_size = "8" | "16" | "32"
 
 rule token = parse
@@ -137,19 +140,31 @@ rule token = parse
   | "get_local" { GETLOCAL }
   | "set_local" { SETLOCAL }
 
-  | (nxx as t)".load" { LOAD (memop t "") }
-  | (nxx as t)".load/"(align as a) { LOAD (memop t a) }
-  | (nxx as t)".store" { STORE (memop t "") }
-  | (nxx as t)".store/"(align as a) { STORE (memop t a) }
+  | (nxx as t)".load" { LOAD (memop t "" "") }
+  | (nxx as t)".load+"(digits as o) { LOAD (memop t o "") }
+  | (nxx as t)".load/"(digits as a) { LOAD (memop t "" a) }
+  | (nxx as t)".load+"(digits as o)"/"(digits as a) { LOAD (memop t o a) }
+  | (nxx as t)".store" { STORE (memop t "" "") }
+  | (nxx as t)".store+"(digits as o) { STORE (memop t o "") }
+  | (nxx as t)".store/"(digits as a) { STORE (memop t "" a) }
+  | (nxx as t)".store+"(digits as o)"/"(digits as a) { STORE (memop t o a) }
 
   | (ixx as t)".load"(mem_size as sz)"_"(sign as s)
-    { LOADEXTEND (extendop t sz s "") }
-  | (ixx as t)".load"(mem_size as sz)"_"(sign as s)"/"(align as a)
-    { LOADEXTEND (extendop t sz s a) }
+    { LOADEXTEND (extendop t sz s "" "") }
+  | (ixx as t)".load"(mem_size as sz)"_"(sign as s)"+"(digits as o)
+    { LOADEXTEND (extendop t sz s o "") }
+  | (ixx as t)".load"(mem_size as sz)"_"(sign as s)"/"(digits as a)
+    { LOADEXTEND (extendop t sz s "" a) }
+  | (ixx as t)".load"(mem_size as sz)"_"(sign as s)"+"(digits as o)"/"(digits as a)
+    { LOADEXTEND (extendop t sz s o a) }
   | (ixx as t)".store"(mem_size as sz)
-    { STORETRUNC (truncop t sz "") }
-  | (ixx as t)".store"(mem_size as sz)"/"(align as a)
-    { STORETRUNC (truncop t sz a) }
+    { STORETRUNC (truncop t sz "" "") }
+  | (ixx as t)".store"(mem_size as sz)"+"(digits as o)
+    { STORETRUNC (truncop t sz o "") }
+  | (ixx as t)".store"(mem_size as sz)"/"(digits as a)
+    { STORETRUNC (truncop t sz "" a) }
+  | (ixx as t)".store"(mem_size as sz)"+"(digits as o)"/"(digits as a)
+    { STORETRUNC (truncop t sz o a) }
 
   | (nxx as t)".switch" { SWITCH (value_type t) }
   | (nxx as t)".const" { CONST (value_type t) }

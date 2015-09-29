@@ -126,10 +126,10 @@ type expr =
   | GetParam of var                         (* read parameter
   | GetLocal of var                         (* read local variable
   | SetLocal of var * expr                  (* write local variable
-  | LoadGlobal of var                       (* read global variable
-  | StoreGlobal of var * expr               (* write global variable
-  | Load of loadop * expr                   (* read memory address
-  | Store of storeop * expr * expr          (* write memory address
+  | Load of memop * expr                    (* read memory address
+  | Store of memop * expr * expr            (* write memory address
+  | LoadExtend of extendop * expr           (* read memory address with sign- or zero-extension
+  | StoreTrunc of truncop * expr * expr     (* write memory address with truncation
   | Const of value                          (* constant
   | Unary of unop * expr                    (* unary arithmetic operator
   | Binary of binop * expr * expr           (* binary arithmetic operator
@@ -178,10 +178,8 @@ expr:
   ( return <expr>? )
   ( get_local <var> )
   ( set_local <var> <expr> )
-  ( load_global <var> )
-  ( store_global <var> <expr> )
-  ( <type>.load((8|16)_<sign>)?(/<align>)? <expr> )
-  ( <type>.store(/<align>)? <expr> <expr> )
+  ( <type>.load((8|16)_<sign>)?(+<offset>)?(/<align>)? <expr> )
+  ( <type>.store(+<offset>)?(/<align>)? <expr> <expr> )
   ( <type>.const <value> )
   ( <type>.<unop> <expr> )
   ( <type>.<binop> <expr> <expr> )

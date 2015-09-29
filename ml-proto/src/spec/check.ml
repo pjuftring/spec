@@ -242,19 +242,21 @@ and check_arm c t et arm =
   check_expr c (if fallthru then None else et) e
 
 and check_load c et memop e1 at =
-  check_align memop.align at;
+  check_memop memop at;
   check_expr c (Some Int32Type) e1;
   check_type (Some memop.ty) et at
 
 and check_store c et memop e1 e2 at =
-  check_align memop.align at;
+  check_memop memop at;
   check_expr c (Some Int32Type) e1;
   check_expr c (Some memop.ty) e2;
   check_type None et at
 
-and check_align align at =
-  Lib.Option.app (fun a ->
-    require (Lib.Int.is_power_of_two a) at "non-power-of-two alignment") align
+and check_memop memop at =
+  require (memop.offset >= 0) at "negative offset";
+  Lib.Option.app
+    (fun a -> require (Lib.Int.is_power_of_two a) at "non-power-of-two alignment")
+    memop.align
 
 and check_mem_type ty sz at =
   require (ty = Int64Type || sz <> Memory.Mem32) at "memory size too big"

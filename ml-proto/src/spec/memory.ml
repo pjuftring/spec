@@ -11,6 +11,7 @@ open Values
 
 type address = int
 type size = address
+type offset = address
 type mem_size = Mem8 | Mem16 | Mem32
 type extension = SX | ZX
 type segment = {addr : address; data : string}
@@ -66,60 +67,68 @@ let address_of_value = function
 
 (* Load and store *)
 
-let rec loadn mem n a =
+let effective_address a o =
+  if max_int - a < o then raise Bounds;
+  a + o
+
+let rec loadn mem n ea =
   assert (n > 0 && n <= 8);
-  let byte = try Int64.of_int !mem.{a} with Invalid_argument _ -> raise Bounds in
+  let byte = try Int64.of_int !mem.{ea} with Invalid_argument _ -> raise Bounds in
   if n = 1 then
     byte
   else
-    Int64.logor byte (Int64.shift_left (loadn mem (n-1) (a+1)) 8)
+    Int64.logor byte (Int64.shift_left (loadn mem (n-1) (ea+1)) 8)
 
-let rec storen mem n a v =
+let rec storen mem n ea v =
   assert (n > 0 && n <= 8);
   let byte = (Int64.to_int v) land 255 in
-  (try !mem.{a} <- byte with Invalid_argument _ -> raise Bounds);
+  (try !mem.{ea} <- byte with Invalid_argument _ -> raise Bounds);
   if (n > 1) then
-    storen mem (n-1) (a+1) (Int64.shift_right v 8)
+    storen mem (n-1) (ea+1) (Int64.shift_right v 8)
 
-let load mem a t =
+let load mem a o t =
+  let ea = effective_address a o in
   match t with
-  | Int32Type -> Int32 (Int64.to_int32 (loadn mem 4 a))
-  | Int64Type -> Int64 (loadn mem 8 a)
-  | Float32Type -> Float32 (F32.of_bits (Int64.to_int32 (loadn mem 4 a)))
-  | Float64Type -> Float64 (F64.of_bits (loadn mem 8 a))
+  | Int32Type -> Int32 (Int64.to_int32 (loadn mem 4 ea))
+  | Int64Type -> Int64 (loadn mem 8 ea)
+  | Float32Type -> Float32 (F32.of_bits (Int64.to_int32 (loadn mem 4 ea)))
+  | Float64Type -> Float64 (F64.of_bits (loadn mem 8 ea))
 
-let store mem a v =
+let store mem o a v =
+  let ea = effective_address a o in
   match v with
-  | Int32 x -> storen mem 4 a (Int64.of_int32 x)
-  | Int64 x -> storen mem 8 a x
-  | Float32 x -> storen mem 4 a (Int64.of_int32 (F32.to_bits x))
-  | Float64 x -> storen mem 8 a (F64.to_bits x)
+  | Int32 x -> storen mem 4 ea (Int64.of_int32 x)
+  | Int64 x -> storen mem 8 ea x
+  | Float32 x -> storen mem 4 ea (Int64.of_int32 (F32.to_bits x))
+  | Float64 x -> storen mem 8 ea (F64.to_bits x)
 
-let loadn_sx mem n a =
+let loadn_sx mem n ea =
   assert (n > 0 && n <= 8);
-  let v = loadn mem n a in
+  let v = loadn mem n ea in
   let shift = 64 - (8 * n) in
   Int64.shift_right (Int64.shift_left v shift) shift
 
-let load_extend mem a sz ext t =
+let load_extend mem a o sz ext t =
+  let ea = effective_address a o in
   match sz, ext, t with
-  | Mem8,  ZX, Int32Type -> Int32 (Int64.to_int32 (loadn    mem 1 a))
-  | Mem8,  SX, Int32Type -> Int32 (Int64.to_int32 (loadn_sx mem 1 a))
-  | Mem8,  ZX, Int64Type -> Int64 (loadn mem 1 a)
-  | Mem8,  SX, Int64Type -> Int64 (loadn_sx mem 1 a)
-  | Mem16, ZX, Int32Type -> Int32 (Int64.to_int32 (loadn    mem 2 a))
-  | Mem16, SX, Int32Type -> Int32 (Int64.to_int32 (loadn_sx mem 2 a))
-  | Mem16, ZX, Int64Type -> Int64 (loadn    mem 2 a)
-  | Mem16, SX, Int64Type -> Int64 (loadn_sx mem 2 a)
-  | Mem32, ZX, Int64Type -> Int64 (loadn    mem 4 a)
-  | Mem32, SX, Int64Type -> Int64 (loadn_sx mem 4 a)
+  | Mem8,  ZX, Int32Type -> Int32 (Int64.to_int32 (loadn    mem 1 ea))
+  | Mem8,  SX, Int32Type -> Int32 (Int64.to_int32 (loadn_sx mem 1 ea))
+  | Mem8,  ZX, Int64Type -> Int64 (loadn mem 1 ea)
+  | Mem8,  SX, Int64Type -> Int64 (loadn_sx mem 1 ea)
+  | Mem16, ZX, Int32Type -> Int32 (Int64.to_int32 (loadn    mem 2 ea))
+  | Mem16, SX, Int32Type -> Int32 (Int64.to_int32 (loadn_sx mem 2 ea))
+  | Mem16, ZX, Int64Type -> Int64 (loadn    mem 2 ea)
+  | Mem16, SX, Int64Type -> Int64 (loadn_sx mem 2 ea)
+  | Mem32, ZX, Int64Type -> Int64 (loadn    mem 4 ea)
+  | Mem32, SX, Int64Type -> Int64 (loadn_sx mem 4 ea)
   | _ -> raise Type
 
-let store_trunc mem a sz v =
+let store_trunc mem a o sz v =
+  let ea = effective_address a o in
   match sz, v with
-  | Mem8,  Int32 x -> storen mem 1 a (Int64.of_int32 x)
-  | Mem8,  Int64 x -> storen mem 1 a x
-  | Mem16, Int32 x -> storen mem 2 a (Int64.of_int32 x)
-  | Mem16, Int64 x -> storen mem 2 a x
-  | Mem32, Int64 x -> storen mem 4 a x
+  | Mem8,  Int32 x -> storen mem 1 ea (Int64.of_int32 x)
+  | Mem8,  Int64 x -> storen mem 1 ea x
+  | Mem16, Int32 x -> storen mem 2 ea (Int64.of_int32 x)
+  | Mem16, Int64 x -> storen mem 2 ea x
+  | Mem32, Int64 x -> storen mem 4 ea x
   | _ -> raise Type
