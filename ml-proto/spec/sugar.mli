@@ -28,6 +28,7 @@ val convert : cvt * expr -> expr'
 val page_size : expr'
 val memory_size : expr'
 val resize_memory : expr -> expr'
+val has_feature : string -> expr'
 
 val case : literal * (expr list * bool) option -> case'
 

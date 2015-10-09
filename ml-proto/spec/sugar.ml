@@ -94,6 +94,8 @@ let memory_size =
 let resize_memory e =
   ResizeMemory e
 
+let has_feature s =
+  HasFeature s
 
 let case (c, br) =
   match br with

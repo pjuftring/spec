@@ -221,6 +221,9 @@ let rec check_expr c et e =
     check_expr c (Some Int32Type) e;
     check_type None et e.at
 
+  | HasFeature str ->
+    check_type (Some Int32Type) et e.at
+
 and check_exprs c ts es =
   let ets = List.map (fun x -> Some x) ts in
   try List.iter2 (check_expr c) ets es

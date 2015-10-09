@@ -14,7 +14,10 @@ let error = Error.error
 type value = Values.value
 type func = Ast.func
 type import = value list -> value option
-type host_params = {page_size : Memory.size}
+type host_params = {
+  page_size : Memory.size;
+  has_feature : string -> bool
+}
 
 module ExportMap = Map.Make(String)
 type export_map = func ExportMap.t
@@ -250,6 +253,9 @@ let rec eval_expr (c : config) (e : expr) =
     Memory.resize mem sz;
     None
 
+  | HasFeature str ->
+    Some (Int32 (if (c.module_.host.has_feature str) then 1l else 0l))
+
 and eval_expr_option c eo =
   match eo with
   | Some e -> eval_expr c e
@@ -303,6 +309,6 @@ let invoke m name vs =
 let host_eval e =
   let f = {params = []; result = None; locals = []; body = e} @@ no_region in
   let exports = ExportMap.singleton "eval" f in
-  let host = {page_size = 1L} in
+  let host = {page_size = 1L; has_feature = fun str -> false} in
   let m = {imports = []; exports; tables = []; funcs = [f]; memory = None; host} in
   eval_func m f []

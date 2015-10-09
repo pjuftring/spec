@@ -98,6 +98,7 @@ and expr' =
   | PageSize                                       (* return host-defined page_size *)
   | MemorySize                                     (* return current size of linear memory *)
   | ResizeMemory of expr                           (* resize linear memory *)
+  | HasFeature of string                           (* test for presence of named feature *)
 
 and case = case' Source.phrase
 and case' =
